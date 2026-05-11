@@ -78,12 +78,12 @@ def run_decode():
     R = 200000 / duration_sec
     
     # Calculate Figure of Merit
-    numerator = min(R, 10000) * ((1 - N / 100000)**10)
+    numerator = min(R, 3000000) * ((1 - N / 100000)**10)
     denominator = max(1, 800 * P)
     fom = numerator / denominator
     
     # Print the results
-    print(f"\n--- Lab 4 System Performance ---")
+    print(f"\n--- Lab 5 High-Performance System Performance ---")
     print(f"tx.wav Duration : {duration_sec:.4f} seconds")
     print(f"Data Rate (R)   : {R:.2f} bps")
     print(f"Avg Power (P)   : {P:.6f}")
@@ -137,7 +137,7 @@ def run_sdecode():
     fom = numerator / denominator
     
     # Print the results
-    print(f"\n--- Lab 4 System Performance ---")
+    print(f"\n--- Lab 5 Standard-Compliant System Performance ---")
     print(f"tx.wav Duration : {duration_sec:.4f} seconds")
     print(f"Data Rate (R)   : {R:.2f} bps")
     print(f"Avg Power (P)   : {P:.6f}")
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     print("2: Run Decoder (Grades rx.wav)")
     print("=================================")
     
-    choice = input("Enter 1 or 2, and put prefix 's' for standard or 'p' for high-performance (example: 's1'): ").strip()
+    choice = input("Enter 1 or 2, and put prefix 's' for standard-compliant or 'p' for high-performance (example: 's1'): ").strip()
     
     if choice == '1':
         run_encode()
