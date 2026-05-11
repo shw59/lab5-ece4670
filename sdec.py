@@ -60,6 +60,31 @@ def sdec():
 
     data_start = sync_start + len(double_sync)
 
+    # -------------------------------------------------------------------------
+    # MODIFIED: Find where the sync symbol starts in the received signal
+    # using sliding auto-correlation instead of cross-correlation
+    # -------------------------------------------------------------------------
+    # L = SYMBOL_LEN
+    # max_search = 6000 # Prepause is between 50 and 5000, so 6000 is a safe upper limit
+    
+    # correlations = np.zeros(max_search)
+    
+    # # Slide a window across the received signal, comparing two adjacent blocks of length L
+    # for i in range(max_search):
+    #     window1 = received[i : i + L]
+    #     window2 = received[i + L : i + 2 * L]
+        
+    #     # Take the vector dot product of the two identical halves
+    #     correlations[i] = np.dot(window1, window2)
+        
+    # # The highest point of the auto-correlation is the exact start of the sync sequence
+    # sync_start = np.argmax(correlations)
+    
+    # # Because there are exactly two identical sync symbols prepended [2], 
+    # # the data begins after exactly 2 * L samples
+    # data_start = sync_start + 2 * L
+    # -------------------------------------------------------------------------
+
     # Extract and decode each data symbol
     bits_out = np.zeros(NUM_SYMBOLS * K, dtype=int)
 

@@ -1,0 +1,228 @@
+#!/usr/bin/env sh
+''''which python3 >/dev/null 2>&1 && exec python3 "$0" "$@" # '''
+''''which python2 >/dev/null 2>&1 && exec python2 "$0" "$@" # '''
+''''which python  >/dev/null 2>&1 && exec python  "$0" "$@" # '''
+''''exec echo "Error: Cannot find python in env"            # '''
+
+import argparse
+import hashlib
+import random
+import os
+import sys
+import time
+import wave
+import logging
+import re
+
+logging.basicConfig(level=logging.INFO)
+
+try:
+    import requests
+except ImportError:
+    print("Failed to import requests. Trying packaged requests library.")
+    requests_dir = os.path.abspath(os.path.dirname(__file__))
+    libs_dir = os.path.join(requests_dir, 'libs_ccplay')
+    sys.path.append(libs_dir)
+    import requests
+
+__version__ = "2.2.1--2025-01-25"
+
+DEFAULT_SERVER='commcloud.cac.cornell.edu'
+DEFAULT_PORT=46702
+VALID_BIT_DEPTH_SET = set([8, 16, 24, 32])
+VALID_SAMPLE_RATE_SET = set([8000, 11025, 22050, 44100, 48000, 96000, 176400, 192000])
+MAX_CHANNEL_NUMBER_RADIO = 2
+MAX_CHANNEL_NUMBER_AUDIO = 1
+MAX_DURATION_SECONDS = 90.0
+
+
+def check_wave_file(fname,channel):
+    try:
+        filelength = os.path.getsize(fname)
+        wav_read_file = wave.open(fname, 'rb')
+        wav_info = {
+                'channels'  : wav_read_file.getnchannels(),
+                'bitdepth'  : wav_read_file.getsampwidth()*8,
+                'samplerate' : wav_read_file.getframerate(), 
+                'framenum'  : wav_read_file.getnframes()
+                }
+
+        # Don't use getnframes to get number of samples, it gives
+        # incorrect answers in some cases. Note that this only gives
+        # the approximate duration of the file because it counts the
+        # header bytes as audio samples.
+
+        wav_info['time'] = (filelength/(float(wav_info['samplerate'])*
+                            float(wav_info['bitdepth'])*
+                            float(wav_info['channels'])/8))
+        wav_read_file.close()
+
+        if wav_info['bitdepth'] not in VALID_BIT_DEPTH_SET:
+            return (False,
+                    ("ERROR: %i is not an acceptable sample bit depth. " +
+                     "Only %s are allowed ") %
+                            (wav_info['bitdepth'] , VALID_BIT_DEPTH_SET),
+                    wav_info)
+        if wav_info['samplerate'] not in VALID_SAMPLE_RATE_SET:
+            return (False,
+                    ("ERROR: %i is not an acceptable sample rate. Only %s " +
+                     "are allowed ") %
+                            (wav_info['samplerate'], VALID_SAMPLE_RATE_SET),
+                    wav_info)
+        if wav_info['channels'] > MAX_CHANNEL_NUMBER_RADIO:
+            return (False, "ERROR: WAV file is not mono or stereo.", wav_info)
+        if wav_info['time'] > MAX_DURATION_SECONDS:
+            return (False, "ERROR: WAV file appears to be too long.", wav_info)
+       
+        ch = str(channel)
+        audio_re = re.compile('audio')
+        radio_re = re.compile('radio')
+    
+        if bool(radio_re.match(ch)) and wav_info['channels'] != MAX_CHANNEL_NUMBER_RADIO:
+            return (False, "ERROR: Radio channel input must be stereo.", wav_info)
+        if bool(audio_re.match(ch)) and wav_info['channels'] != MAX_CHANNEL_NUMBER_AUDIO:
+            return (False, "ERROR: Audio channel input must be mono.", wav_info)
+    except:
+        return (False, "ERROR: WAV file is invalid.", wav_info)
+    return (True, "Done.", wav_info)
+
+def check_args(args):
+    if args.rate:
+        if args.rate[0] not in VALID_SAMPLE_RATE_SET:
+            return (False, "ERROR: Requested rate invalid.")
+    # if args.depth:
+    #     if args.depth[0] not in VALID_SAMPLE_DEPTH_SET:
+    #             return (False, "ERROR: Requested depth invalid.")
+    return (True, "Done.")
+
+
+def send(args):
+    wav_file = open(args.wav_input, 'rb')
+    wav_contents = wav_file.read()
+    wav_file.close()
+    if args.verbose:
+        print("Validating arguments ... ", end="")
+    (good_arg_flag, check_arg_msg) = check_args(args)
+    if args.verbose:
+        print(check_arg_msg)
+    if args.verbose:
+        print("Validating WAV file ... ", end="")
+    (good_wav_flag, check_wav_msg, wav_info) = check_wave_file(args.wav_input,args.channel)
+    if args.verbose:
+        print(check_wav_msg)
+    if not good_wav_flag:
+        print(check_wav_msg)
+        exit(1)
+    if not good_arg_flag:
+        print(check_arg_msg)
+        exit(1)
+    data_md5 = hashlib.md5(wav_contents).hexdigest()
+    files = {'wav-payload' : wav_contents}
+    data = {'md5sum' : data_md5}
+    data['version'] = "%(prog)s {version}".format(version=__version__)
+    data['record_bitdepth'] = str(wav_info['bitdepth'])
+    if args.prepause:
+        data['prepause'] = str(args.prepause[0])
+    if args.postpause:
+        data['postpause'] = str(args.postpause[0])
+    if args.channel:
+        data['channel'] = str(args.channel)
+    if args.rate:
+        data['record_rate'] = str(args.rate[0])
+    else:
+        data['record_rate'] = str(wav_info['samplerate'])
+    # if args.depth:
+    #     data['record_bitdepth'] = str(args.depth)
+    # else:
+    #     data['record_bitdepth'] = str(wav_info['bitdepth'])
+    # if args.freq:
+    #     data['freq'] = str(args.freq[0])
+    # if args.txgain:
+    #     data['txgain'] = str(args.txgain[0])
+    # if args.rxgain:
+    #     data['rxgain'] = str(args.rxgain[0])
+
+    if args.verbose:
+        print("Connecting to ccserver ... ", end="", flush=True)
+    url_addr = 'http://' + DEFAULT_SERVER + ':' + str(DEFAULT_PORT)
+
+    try_count = 1
+    max_tries = 5
+    while (try_count < max_tries):
+        try_count = try_count + 1
+        try:
+            req = requests.post(url_addr, data=data, files=files)
+            if req.headers['Response-Msg'].startswith("Error:"):
+                print(req.headers['Response-Msg'])
+                return
+            else:
+                if args.verbose:
+                    print("received response.")
+                    print("Message from ccserver: ", end="")
+                    print(req.headers['Response-Msg'])
+                    print("Saving WAV file as " + args.wav_output + "...", end="")
+                with open(args.wav_output, 'wb') as wav_out:
+                    wav_out.write(req.content)
+                if args.verbose:
+                    print("Done.")
+                return
+        except requests.exceptions.ConnectionError:
+            print("Warning: could not connect to server. Retry # %i." % try_count)
+            time.sleep((2 ** try_count) + (random.randint(0, 1000) / 1000))
+            continue
+    print("Error: could not connect to server after %i tries. Exiting." % try_count)
+
+def generate_parser():
+    parser = argparse.ArgumentParser(
+        description="Apply remote analog channel to a given .wav file")
+    parser.add_argument(
+        'wav_input',
+        help=("an input .wav file to be sent through the remote channel"))
+    parser.add_argument('wav_output',
+        help=("the name of the file you would like the output .wav file to be " +
+              "saved as"))
+    parser.add_argument('--version', action='version',
+        version='%(prog)s {version}'.format(version=__version__))
+    parser.add_argument('--verbose', action='store_true', help=("provide verbose output"))
+    parser.add_argument(
+        '--prepause', nargs=1, type=float,
+        help=("number of samples to pause while recording before the file " +
+              "is played"))
+    parser.add_argument(
+        '--postpause', nargs=1, type=float,
+        help=("number of samples to pause while recording after the file " +
+              "is played"))
+    parser.add_argument(
+        '--channel',
+        help=("a channel specifier; options are 'audio0', 'audio1', 'radio0', 'radio1'; " +
+              "if none are specified, then the audio channel with the shortest queue " +
+              "will be used if the wav file is mono; the radio1 queue " +
+              "will be used if the wav file is stereo"))
+    parser.add_argument(
+        '--rate', nargs=1, type=int,
+        help=("sampling rate, in Hz, at which to record the output .wav file; " +
+              "options are 8000, 11025, 22050, 44100, 96000, and 192000; if " +
+              "not specified, the sampling rate of the input .wav file is used."))
+    # Not supported SP25
+    # parser.add_argument(
+    #     '--depth', nargs=1, type=int,
+    #     help=("resolution, in bits-per-sample, at which to record the output " +
+    #           ".wav file; options are 8, 16, 24, 32; if not specified, the depth " +
+    #           "of the input .wav file is used; this feature is currently not supported"))
+    # parser.add_argument(
+    #     '--freq', nargs=1, type=float,
+    #     help=("carrier frequency in MHz; only applicable " +
+    #           "if using radio0 or radio1"))
+    # parser.add_argument(
+    #     '--txgain', nargs=1, type=int,
+    #     help=("gain of the analog TX front-end in dB; only applicable " +
+    #           "if using radio0 or radio1"))
+    # parser.add_argument(
+    #     '--rxgain', nargs=1, type=int,
+    #     help=("gain of the analog RX front-end in dB; only applicable " +
+    #           "if using radio0 or radio1"))
+    return parser
+    
+if __name__ == "__main__":
+    arg_parser = generate_parser()
+    send(arg_parser.parse_args())

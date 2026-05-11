@@ -106,7 +106,7 @@ def run_sdecode():
         return
 
     print("\nRunning decoder...")
-    decoded_bits = dec()
+    decoded_bits = sdec()
     
     print("Loading original bits to check for errors...")
     original_bits = np.load('original_bits.npy')
@@ -158,9 +158,13 @@ if __name__ == "__main__":
     
     choice = input("Enter 1 or 2, and put prefix 's' for standard-compliant or 'p' for high-performance (example: 's1'): ").strip()
     
-    if choice == '1':
+    if choice == 's1':
+        run_sencode()
+    elif choice == 's2':
+        run_sdecode()
+    elif choice == 'p1':
         run_encode()
-    elif choice == '2':
+    elif choice == 'p2':
         run_decode()
     else:
         print("Invalid choice. Exiting.")
