@@ -106,9 +106,7 @@ def dec():
     # Strip any zero-padding the encoder added to fit the bits squarely into OFDM symbols
     conv_bits = extracted_bits[:CONV_BITS_LEN]
 
-    # ---------------------------------------------------------------------
     # 6. VITERBI DECODING (Rate 1/2, Constraint Length 3)
-    # ---------------------------------------------------------------------
     # State transitions mapped from: state = delay1 * 2 + delay2
     # Format: transitions = { current_state: { input_bit: (next_state, out0, out1) } }
     transitions = {

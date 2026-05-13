@@ -29,9 +29,7 @@ data_idxs = np.array([k for k in tone_idxs if k != pilot_k])
 # --- ENCODER ---
 def enc(bits):
     
-    # ---------------------------------------------------------------------
     # 1. CONVOLUTIONAL ENCODER (Rate 1/2, Constraint Length 3)
-    # ---------------------------------------------------------------------
     # Pad with 2 zeros to flush the final bits through the delay elements
     padded_src_bits = np.concatenate([bits, np.zeros(2, dtype=int)])
     conv_bits = np.zeros(len(padded_src_bits) * 2, dtype=int)
@@ -50,9 +48,7 @@ def enc(bits):
         delay2 = delay1
         delay1 = b
 
-    # ---------------------------------------------------------------------
     # 2. OFDM SYMBOL PADDING
-    # ---------------------------------------------------------------------
     # Dynamically calculate the number of symbols needed for the 400,004 encoded bits
     NUM_SYMBOLS = int(np.ceil(len(conv_bits) / BITS_PER_SYM)) 
     
@@ -62,9 +58,7 @@ def enc(bits):
     
     tx_symbols = []
 
-    # ---------------------------------------------------------------------
     # 3. GENERATE DOUBLE PN SYNCHRONIZATION SYMBOL
-    # ---------------------------------------------------------------------
     np.random.seed(4670)
     sync_phases = np.random.choice([1.0, -1.0], size=N)
     freq_sync = np.zeros(N, dtype=complex)
@@ -76,9 +70,7 @@ def enc(bits):
     sync_sym = np.concatenate([time_sync[-CP:], time_sync])
     tx_symbols.extend([sync_sym, sync_sym])
 
-    # ---------------------------------------------------------------------
     # 4. GENERATE DATA SYMBOLS (16-QAM + 1 Pilot Tone)
-    # ---------------------------------------------------------------------
     idx = 0
     for i in range(NUM_SYMBOLS):
         freq_data = np.zeros(N, dtype=complex)
@@ -100,16 +92,12 @@ def enc(bits):
         data_sym = np.concatenate([time_data[-CP:], time_data])
         tx_symbols.append(data_sym)
 
-    # ---------------------------------------------------------------------
     # 5. ASSEMBLE AND NORMALIZE POWER
-    # ---------------------------------------------------------------------
     xraw = np.concatenate(tx_symbols)
     P_raw = np.mean(xraw**2)
     alpha = np.sqrt(0.0012 / P_raw)
     x_norm = xraw * alpha
 
-    # ---------------------------------------------------------------------
     # 6. SAVE TO WAV
-    # ---------------------------------------------------------------------
     tmp = (x_norm * np.iinfo(np.int32).max).astype(np.int32)
     wav.write('tx.wav', FS, tmp)
