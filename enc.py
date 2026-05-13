@@ -23,21 +23,14 @@ def bits_to_pam(b0, b1):
     if b0 == 1 and b1 == 1: return 1.0
     if b0 == 1 and b1 == 0: return 3.0
 
-def pam_to_bits(val):
-    if val <= -2: return [0, 0]
-    elif val <= 0: return [0, 1]
-    elif val <= 2: return [1, 1]
-    else: return [1, 0]
-
-
 # Select the 400 bins closest to 7500 Hz
 valid_bins = np.arange(1, N // 2)
 distances = np.abs(valid_bins - int(np.round(7500.0 * N / FS)))
 tone_idxs = np.sort(valid_bins[np.argsort(distances)][:K])
 
-# Separate the highest frequency bin to act as our continuous pilot tone
-pilot_k = tone_idxs[-1]
-data_idxs = tone_idxs[:-1]
+# Separate the 7.5 kHz frequency bin to act as our continuous pilot tone
+pilot_k = int(np.round(7500.0 * N / FS))   # bin 174 = 7.5 kHz — best SNR
+data_idxs = np.array([k for k in tone_idxs if k != pilot_k])
 
 # --- ENCODER ---
 def enc(bits):
