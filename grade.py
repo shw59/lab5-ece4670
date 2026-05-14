@@ -168,4 +168,3 @@ if __name__ == "__main__":
         run_decode()
     else:
         print("Invalid choice. Exiting.")
-        
