@@ -101,3 +101,4 @@ def enc(bits):
     # 6. SAVE TO WAV
     tmp = (x_norm * np.iinfo(np.int32).max).astype(np.int32)
     wav.write('tx.wav', FS, tmp)
+    

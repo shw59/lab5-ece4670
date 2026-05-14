@@ -22,7 +22,7 @@ def sdec():
     center_bin = int(np.round(7500.0 * N / FS))
     valid_bins = np.arange(1, N // 2)
     distances = np.abs(valid_bins - center_bin)
-    sorted_by_distance = valid_bins[np.argsort(distances)]
+    sorted_by_distance = valid_bins[np.lexsort((valid_bins, distances))]
     tone_idxs = np.sort(sorted_by_distance[:K])
 
     # build the sync symbol

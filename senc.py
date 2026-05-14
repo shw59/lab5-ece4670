@@ -89,5 +89,3 @@ def senc(bits):
     signal_int32 = (np.iinfo(np.int32).max * signal).astype(np.int32)
     wav.write('tx.wav', FS, signal_int32)
 
-
-    
